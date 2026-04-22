@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+
+  memberships  LeagueMember[]
+  commissions  League[]       @relation("Commissioner")
+}
+
+model League {
+  id             String       @id @default(cuid())
+  name           String
+  mode           LeagueMode
+  status         LeagueStatus @default(SETUP)
+  maxTeams       Int          @default(10)
+  budget         Int          @default(10000)
+  squadSize      Int          @default(15)
+  inviteCode     String       @unique @default(cuid())
+  commissionerId String
+  createdAt      DateTime     @default(now())
+
+  commissioner User           @relation("Commissioner", fields: [commissionerId], references: [id])
+  members      LeagueMember[]
+  auctionQueue AuctionQueue[]
+  draftOrders  DraftOrder[]
+  draftPicks   DraftPick[]
+}
+
+model LeagueMember {
+  id              String   @id @default(cuid())
+  leagueId        String
+  userId          String
+  teamName        String?
+  budgetRemaining Int      @default(10000)
+  totalPoints     Int      @default(0)
+  draftPosition   Int?
+  isReady         Boolean  @default(false)
+  joinedAt        DateTime @default(now())
+
+  league      League       @relation(fields: [leagueId], references: [id])
+  user        User         @relation(fields: [userId], references: [id])
+  teamPlayers TeamPlayer[]
+  bids        AuctionBid[]
+  draftPicks  DraftPick[]
+
+  @@unique([leagueId, userId])
+}
+
+model Player {
+  id           String     @id @default(cuid())
+  cricApiId    String?    @unique
+  cricbuzzId   String?    @unique
+  name         String
+  iplTeam      String
+  role         PlayerRole
+  basePrice    Int        @default(200)
+  imageUrl     String?
+  nationality  String?
+  updatedAt    DateTime   @updatedAt
+
+  teamPlayers  TeamPlayer[]
+  stats        PlayerStats[]
+  auctionQueue AuctionQueue[]
+  draftPicks   DraftPick[]
+}
+
+model TeamPlayer {
+  id            String  @id @default(cuid())
+  memberId      String
+  playerId      String
+  leagueId      String
+  isCaptain     Boolean @default(false)
+  isViceCaptain Boolean @default(false)
+  purchasePrice Int?
+  draftRound    Int?
+
+  member LeagueMember @relation(fields: [memberId], references: [id])
+  player Player       @relation(fields: [playerId], references: [id])
+
+  @@unique([memberId, playerId])
+  @@unique([leagueId, playerId])
+}
+
+model PlayerStats {
+  id        String   @id @default(cuid())
+  playerId  String
+  matchId   String
+  runs      Int      @default(0)
+  balls     Int      @default(0)
+  fours     Int      @default(0)
+  sixes     Int      @default(0)
+  wickets   Int      @default(0)
+  economy   Float    @default(0)
+  catches   Int      @default(0)
+  runOuts   Int      @default(0)
+  stumpings Int      @default(0)
+  maidens   Int      @default(0)
+  lbwBowled Int      @default(0)
+  points    Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  player Player @relation(fields: [playerId], references: [id])
+  match  Match  @relation(fields: [matchId], references: [id])
+
+  @@unique([playerId, matchId])
+}
+
+model Match {
+  id        String      @id @default(cuid())
+  cricApiId String?     @unique
+  team1     String
+  team2     String
+  venue     String?
+  matchDate DateTime
+  status    MatchStatus @default(UPCOMING)
+  result    String?
+
+  playerStats PlayerStats[]
+}
+
+model AuctionQueue {
+  id         String            @id @default(cuid())
+  leagueId   String
+  playerId   String
+  queueOrder Int
+  status     AuctionItemStatus @default(PENDING)
+  soldTo     String?
+  soldPrice  Int?
+
+  league League @relation(fields: [leagueId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([leagueId, queueOrder])
+}
+
+model AuctionBid {
+  id        String   @id @default(cuid())
+  playerId  String
+  memberId  String
+  leagueId  String
+  amount    Int
+  won       Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  member LeagueMember @relation(fields: [memberId], references: [id])
+}
+
+model DraftPick {
+  id       String @id @default(cuid())
+  leagueId String
+  memberId String
+  playerId String
+  round    Int
+  pickNum  Int
+
+  league League       @relation(fields: [leagueId], references: [id])
+  member LeagueMember @relation(fields: [memberId], references: [id])
+  player Player       @relation(fields: [playerId], references: [id])
+
+  @@unique([leagueId, round, pickNum])
+  @@unique([leagueId, playerId])
+}
+
+model DraftOrder {
+  id       String @id @default(cuid())
+  leagueId String
+  memberId String
+  position Int
+
+  league League @relation(fields: [leagueId], references: [id])
+
+  @@unique([leagueId, position])
+  @@unique([leagueId, memberId])
+}
+
+enum LeagueMode {
+  DRAFT
+  AUCTION
+}
+
+enum LeagueStatus {
+  SETUP
+  DRAFTING
+  AUCTIONING
+  ACTIVE
+  COMPLETED
+}
+
+enum PlayerRole {
+  BATSMAN
+  BOWLER
+  ALL_ROUNDER
+  WICKET_KEEPER
+}
+
+enum AuctionItemStatus {
+  PENDING
+  ACTIVE
+  SOLD
+  UNSOLD
+}
+
+enum MatchStatus {
+  UPCOMING
+  LIVE
+  COMPLETED
+}
