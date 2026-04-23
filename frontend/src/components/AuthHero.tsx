@@ -8,7 +8,7 @@ const PLAYERS = [
     initials: 'MSD',
     ring: '#F9C12E',
     bg: 'from-yellow-500/20 to-yellow-900/30',
-    img: '/players/dhoni.jpg',
+    img: '/players/Thala.jpg',
   },
   {
     name: 'Virat Kohli',
@@ -35,7 +35,7 @@ const PLAYERS = [
     initials: 'SI',
     ring: '#DD1F26',
     bg: 'from-red-500/20 to-orange-900/30',
-    img: '/players/shreyas.jpg',
+    img: '/players/Sarpanch.png',
   },
 ];
 
