@@ -18,9 +18,10 @@ import { prisma } from './lib/prisma';
 const app = express();
 const httpServer = createServer(app);
 
-// Accept comma-separated origins in CLIENT_URL, plus always allow localhost dev
+// Accept comma-separated origins in CLIENT_URL, plus hardcoded known origins
 const allowedOrigins = [
   ...config.clientUrl.split(',').map((o) => o.trim()).filter(Boolean),
+  'https://fantasy-ipl-frontend.vercel.app',
   'http://localhost:5173',
   'http://localhost:4173',
 ];
