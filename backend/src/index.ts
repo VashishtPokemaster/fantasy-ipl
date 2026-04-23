@@ -18,12 +18,27 @@ import { prisma } from './lib/prisma';
 const app = express();
 const httpServer = createServer(app);
 
-const io = new Server(httpServer, {
-  cors: { origin: config.clientUrl, credentials: true },
-});
+// Accept comma-separated origins in CLIENT_URL, plus always allow localhost dev
+const allowedOrigins = [
+  ...config.clientUrl.split(',').map((o) => o.trim()).filter(Boolean),
+  'http://localhost:5173',
+  'http://localhost:4173',
+];
+
+const corsOptions = {
+  origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (Postman, curl, server-to-server)
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.some((o) => origin.startsWith(o))) return cb(null, true);
+    cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+};
+
+const io = new Server(httpServer, { cors: corsOptions });
 
 app.use(helmet());
-app.use(cors({ origin: config.clientUrl, credentials: true }));
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
