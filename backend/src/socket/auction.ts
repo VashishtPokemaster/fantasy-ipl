@@ -166,10 +166,49 @@ export function registerAuctionHandlers(io: Server, socket: Socket) {
       socket.emit('error', { message: 'Only the commissioner can start the auction' });
       return;
     }
-    if (league.status !== 'SETUP') {
-      socket.emit('error', { message: 'Auction already started' });
+
+    // Allow restart if league got stuck in ACTIVE due to empty queue, or is in SETUP
+    const allowedStatuses = ['SETUP', 'ACTIVE', 'AUCTIONING'];
+    if (!allowedStatuses.includes(league.status)) {
+      socket.emit('error', { message: 'Cannot start auction in current league state' });
       return;
     }
+
+    // If there's already an active in-memory state with a current player, don't restart
+    const existingState = states.get(leagueId);
+    if (existingState && existingState.status === 'active' && existingState.currentPlayerId) {
+      socket.emit('error', { message: 'Auction is already running' });
+      return;
+    }
+
+    // Check if queue has pending items; if not, auto-populate with all players
+    const pendingCount = await prisma.auctionQueue.count({
+      where: { leagueId, status: 'PENDING' },
+    });
+
+    if (pendingCount === 0) {
+      // Auto-populate: all players sorted by basePrice descending (highest value first)
+      const allPlayers = await prisma.player.findMany({
+        orderBy: { basePrice: 'desc' },
+        select: { id: true },
+      });
+      // Clear any old queue entries first
+      await prisma.auctionQueue.deleteMany({ where: { leagueId } });
+      if (allPlayers.length === 0) {
+        socket.emit('error', { message: 'No players found. Please seed players first (Dashboard → Seed Players).' });
+        return;
+      }
+      await prisma.auctionQueue.createMany({
+        data: allPlayers.map((p, i) => ({
+          leagueId,
+          playerId: p.id,
+          queueOrder: i,
+        })),
+      });
+    }
+
+    // Reset in-memory state for this league
+    states.delete(leagueId);
 
     await prisma.league.update({ where: { id: leagueId }, data: { status: 'AUCTIONING' } });
     io.to(`league:${leagueId}`).emit('auction:started');
