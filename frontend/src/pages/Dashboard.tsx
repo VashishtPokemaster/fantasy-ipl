@@ -29,6 +29,9 @@ export default function Dashboard() {
     try {
       const res = await playerApi.seed();
       alert(`✅ ${res.data.message}`);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(`❌ Seed failed: ${msg || 'Could not reach server. Make sure Render is awake and try again in 30 seconds.'}`);
     } finally {
       setSeeding(false);
     }
@@ -45,6 +48,9 @@ export default function Dashboard() {
         if (failedNames.length > 10) msg += `\n...and ${failedNames.length - 10} more`;
       }
       alert(msg);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(`❌ Sync failed: ${msg || 'Could not reach server. Try again in 30 seconds.'}`);
     } finally {
       setSyncing(false);
     }

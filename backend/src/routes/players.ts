@@ -49,17 +49,29 @@ router.get('/external/search', authenticate, async (req: AuthRequest, res: Respo
 
 // Seed all IPL 2025 players
 router.post('/seed', authenticate, async (_req: AuthRequest, res: Response) => {
-  const players = getIPL2025Players();
-  let created = 0;
-  for (const p of players) {
-    await prisma.player.upsert({
-      where: { cricApiId: p.cricApiId },
-      update: { name: p.name, iplTeam: p.iplTeam, role: p.role, basePrice: p.basePrice, nationality: p.nationality },
-      create: p,
+  try {
+    const players = getIPL2025Players();
+
+    // Fast path: insert all new players in one shot, skip duplicates
+    await prisma.player.createMany({
+      data: players,
+      skipDuplicates: true,
     });
-    created++;
+
+    // Update existing players' details (name/team/role/price may have changed)
+    for (const p of players) {
+      await prisma.player.update({
+        where: { cricApiId: p.cricApiId },
+        data: { name: p.name, iplTeam: p.iplTeam, role: p.role, basePrice: p.basePrice, nationality: p.nationality },
+      }).catch(() => {}); // ignore if somehow missing
+    }
+
+    const total = await prisma.player.count();
+    res.json({ seeded: players.length, message: `${players.length} players seeded successfully (${total} total in DB).` });
+  } catch (err) {
+    console.error('[Seed] Error seeding players:', err);
+    res.status(500).json({ error: `Seeding failed: ${err instanceof Error ? err.message : String(err)}` });
   }
-  res.json({ seeded: created, message: `${created} players seeded. Run /players/sync-ids next to link CricAPI IDs.` });
 });
 
 // Sync player IDs using Cricbuzz (RapidAPI — 100 req/min, not 100/day like CricAPI)
