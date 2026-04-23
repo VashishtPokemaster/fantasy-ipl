@@ -18,20 +18,14 @@ import { prisma } from './lib/prisma';
 const app = express();
 const httpServer = createServer(app);
 
-// Accept comma-separated origins in CLIENT_URL, plus hardcoded known origins
-const allowedOrigins = [
-  ...config.clientUrl.split(',').map((o) => o.trim()).filter(Boolean),
-  'https://fantasy-ipl-frontend.vercel.app',
-  'http://localhost:5173',
-  'http://localhost:4173',
-];
-
 const corsOptions = {
-  origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
-    // Allow requests with no origin (Postman, curl, server-to-server)
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.some((o) => origin.startsWith(o))) return cb(null, true);
-    cb(new Error(`CORS: origin ${origin} not allowed`));
+  origin: (origin: string | undefined, cb: (err: null, allow: boolean) => void) => {
+    // Allow: no origin (curl/Postman), any Vercel deploy, localhost dev
+    if (!origin || origin.includes('vercel.app') || origin.includes('localhost')) {
+      cb(null, true);
+    } else {
+      cb(null, false);
+    }
   },
   credentials: true,
 };
