@@ -8,7 +8,7 @@ const PLAYERS = [
     initials: 'MSD',
     ring: '#F9C12E',
     bg: 'from-yellow-500/20 to-yellow-900/30',
-    img: 'https://en.wikipedia.org/wiki/Special:FilePath/MS_Dhoni_in_2019.jpg',
+    img: '/players/dhoni.jpg',
   },
   {
     name: 'Virat Kohli',
@@ -30,12 +30,12 @@ const PLAYERS = [
   },
   {
     name: 'Shreyas Iyer',
-    team: 'KKR',
+    team: 'PBKS',
     role: 'Batter',
     initials: 'SI',
-    ring: '#7048E8',
-    bg: 'from-purple-600/20 to-purple-900/30',
-    img: 'https://en.wikipedia.org/wiki/Special:FilePath/Shreyas_Iyer.jpg',
+    ring: '#DD1F26',
+    bg: 'from-red-500/20 to-orange-900/30',
+    img: '/players/shreyas.jpg',
   },
 ];
 
@@ -46,8 +46,8 @@ function PlayerCard({ player }: { player: typeof PLAYERS[number] }) {
     <div className={`relative flex flex-col items-center gap-2 p-4 rounded-2xl bg-gradient-to-b ${player.bg} border border-white/10 backdrop-blur-sm hover:scale-105 transition-transform duration-300`}>
       {/* Circular photo */}
       <div
-        className="w-20 h-20 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-        style={{ boxShadow: `0 0 0 3px ${player.ring}, 0 0 16px ${player.ring}55` }}
+        className="w-24 h-24 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+        style={{ boxShadow: `0 0 0 3px ${player.ring}, 0 0 20px ${player.ring}55` }}
       >
         {imgFailed ? (
           <div
