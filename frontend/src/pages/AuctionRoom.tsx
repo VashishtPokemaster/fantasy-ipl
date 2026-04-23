@@ -82,6 +82,14 @@ export default function AuctionRoom() {
 
     socket.emit('auction:join', { leagueId });
 
+    // Re-join room automatically if socket reconnects (e.g. after Render wakes from sleep)
+    const onReconnect = () => {
+      console.log('[AuctionRoom] Socket reconnected — re-joining room');
+      socket.emit('auction:join', { leagueId });
+      addLog('info', 'Reconnected to server');
+    };
+    socket.on('connect', onReconnect);
+
     socket.on('auction:state', (state: AuctionStateUpdate) => {
       setCurrentBid(state.currentBid);
       setCurrentBidderId(state.currentBidderId);
@@ -152,10 +160,12 @@ export default function AuctionRoom() {
     });
 
     socket.on('error', ({ message }: { message: string }) => {
-      addLog('info', `Error: ${message}`);
+      addLog('info', `⚠️ ${message}`);
+      alert(`Auction error: ${message}`);
     });
 
     return () => {
+      socket.off('connect', onReconnect);
       socket.off('auction:state');
       socket.off('auction:started');
       socket.off('auction:next_player');
