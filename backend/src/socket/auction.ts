@@ -13,6 +13,7 @@ interface AuctionState {
 }
 
 const states = new Map<string, AuctionState>();
+const starting = new Set<string>(); // prevent concurrent auction:start for same league
 const TICK_MS = 1000;
 const BID_TIME = 30;
 const ANTI_SNIPE_THRESHOLD = 5;
@@ -184,6 +185,13 @@ export function registerAuctionHandlers(io: Server, socket: Socket) {
   });
 
   socket.on('auction:start', async ({ leagueId }: { leagueId: string }) => {
+    // Block concurrent starts for the same league
+    if (starting.has(leagueId)) {
+      await broadcastState(io, leagueId);
+      return;
+    }
+    starting.add(leagueId);
+
     try {
       const league = await prisma.league.findUnique({ where: { id: leagueId } });
       if (!league || league.commissionerId !== userId) {
@@ -191,28 +199,25 @@ export function registerAuctionHandlers(io: Server, socket: Socket) {
         return;
       }
 
-      // Allow restart if league got stuck in ACTIVE due to empty queue, or is in SETUP
       const allowedStatuses = ['SETUP', 'ACTIVE', 'AUCTIONING'];
       if (!allowedStatuses.includes(league.status)) {
         socket.emit('error', { message: 'Cannot start auction in current league state' });
         return;
       }
 
-      // If there's already an active in-memory state with a current player, don't restart
+      // If already running, just sync state to requester
       const existingState = states.get(leagueId);
       if (existingState && existingState.status === 'active' && existingState.currentPlayerId) {
-        // Just broadcast current state to the requester — they probably lost connection
         await broadcastState(io, leagueId);
         return;
       }
 
-      // Check if queue has pending items; if not, auto-populate with all players
+      // Check pending count and (re)build queue atomically if needed
       const pendingCount = await prisma.auctionQueue.count({
         where: { leagueId, status: 'PENDING' },
       });
 
       if (pendingCount === 0) {
-        // Auto-populate: all players sorted by basePrice descending (highest value first)
         const allPlayers = await prisma.player.findMany({
           orderBy: { basePrice: 'desc' },
           select: { id: true },
@@ -223,30 +228,35 @@ export function registerAuctionHandlers(io: Server, socket: Socket) {
           return;
         }
 
-        // Clear any stale queue entries and rebuild
-        await prisma.auctionQueue.deleteMany({ where: { leagueId } });
-        await prisma.auctionQueue.createMany({
-          data: allPlayers.map((p, i) => ({
-            leagueId,
-            playerId: p.id,
-            queueOrder: i,
-          })),
-        });
+        // Atomic: delete old entries and insert new ones in a single transaction
+        await prisma.$transaction([
+          prisma.auctionQueue.deleteMany({ where: { leagueId } }),
+          prisma.auctionQueue.createMany({
+            data: allPlayers.map((p, i) => ({
+              leagueId,
+              playerId: p.id,
+              queueOrder: i,
+            })),
+          }),
+        ]);
 
         console.log(`[Auction] Auto-populated queue with ${allPlayers.length} players for league ${leagueId}`);
       }
 
-      // Reset in-memory state for this league
+      // Reset in-memory state
       states.delete(leagueId);
 
       await prisma.league.update({ where: { id: leagueId }, data: { status: 'AUCTIONING' } });
-      io.to(`league:${leagueId}`).emit('auction:started');
 
       console.log(`[Auction] Started for league ${leagueId}, advancing queue...`);
-      await advanceQueue(io, leagueId);
+      await advanceQueue(io, leagueId); // advance first, THEN tell clients
+
+      io.to(`league:${leagueId}`).emit('auction:started');
     } catch (err) {
       console.error('[Auction] start error:', err);
       socket.emit('error', { message: `Failed to start auction: ${err instanceof Error ? err.message : 'Unknown error'}` });
+    } finally {
+      starting.delete(leagueId);
     }
   });
 
