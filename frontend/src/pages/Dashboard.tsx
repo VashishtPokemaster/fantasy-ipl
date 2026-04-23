@@ -18,7 +18,10 @@ export default function Dashboard() {
   const { user } = useAuthStore();
 
   useEffect(() => {
-    leagueApi.list().then((r) => setLeagues(r.data)).finally(() => setLoading(false));
+    leagueApi.list()
+      .then((r) => setLeagues(r.data))
+      .catch(() => {}) // server sleeping — leagues just won't show until retry
+      .finally(() => setLoading(false));
   }, []);
 
   const [seeding, setSeeding] = useState(false);

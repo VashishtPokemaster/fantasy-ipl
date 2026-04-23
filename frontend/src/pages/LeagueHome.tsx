@@ -8,14 +8,22 @@ export default function LeagueHome() {
   const { id } = useParams<{ id: string }>();
   const [league, setLeague] = useState<League | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [copying, setCopying] = useState(false);
   const { user } = useAuthStore();
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const fetchLeague = () => {
     if (!id) return;
-    leagueApi.get(id).then((r) => setLeague(r.data)).finally(() => setLoading(false));
-  }, [id]);
+    setLoading(true);
+    setError('');
+    leagueApi.get(id)
+      .then((r) => setLeague(r.data))
+      .catch(() => setError('Could not reach server. Render may be waking up — wait 30 seconds and try again.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchLeague(); }, [id]);
 
   const copyInviteCode = () => {
     if (!league) return;
@@ -38,6 +46,14 @@ export default function LeagueHome() {
   };
 
   if (loading) return <div className="text-center py-20 text-gray-500">Loading...</div>;
+  if (error) return (
+    <div className="text-center py-20">
+      <p className="text-red-400 mb-4">{error}</p>
+      <button onClick={fetchLeague} className="px-4 py-2 bg-ipl-gold text-black font-bold rounded-lg hover:bg-yellow-400 transition">
+        Retry
+      </button>
+    </div>
+  );
   if (!league) return <div className="text-center py-20 text-red-400">League not found</div>;
 
   const isCommissioner = league.commissionerId === user?.id;
